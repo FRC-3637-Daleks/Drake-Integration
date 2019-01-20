@@ -5,24 +5,29 @@
 /* the project.                                                               */
 /*----------------------------------------------------------------------------*/
 
+#include <iostream>
+
 #include "Robot.h"
 #include "frc/SerialPort.h"
 #include "frc/AnalogPotentiometer.h"
 #include "frc/DigitalOutput.h"
+#include "frc/smartdashboard/SmartDashboard.h"
 
-#include <iostream>
-
-#include <frc/smartdashboard/SmartDashboard.h>
+#include "Helpers.h"
+#include "Helper_VL53L0X.h"
 
 frc::AnalogPotentiometer *pot;
 frc::AnalogPotentiometer *lineSensor;
 //frc::DigitalOutput *led;
 //frc::DigitalOutput *led10;
-#define LIDAR_COUNT 6
+#define LIDAR_COUNT 4
 Sensor_VL53L0X *mLidar[LIDAR_COUNT];
 frc::DigitalOutput *lidarSHDN[LIDAR_COUNT];
 
 void Robot::RobotInit() {
+  BlockingTimer Timer;
+
+  printf("\nRobo Init\n\n");
   m_chooser.SetDefaultOption(kAutoNameDefault, kAutoNameDefault);
   m_chooser.AddOption(kAutoNameCustom, kAutoNameCustom);
   frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
@@ -30,30 +35,45 @@ void Robot::RobotInit() {
   pot = new frc::AnalogPotentiometer(0, 300, 0);
   lineSensor = new frc::AnalogPotentiometer(1, 10, 0);
 
-  for (int i = 0; i < LIDAR_COUNT - 2; i++) {
+  // Crete the GPIO objects
+  for(int i = 0; i < LIDAR_COUNT; i++) {
     lidarSHDN[i] = new frc::DigitalOutput(i);
+  }
+  // Set them all LOW
+  for(int i = 0; i < LIDAR_COUNT; i++) {
     lidarSHDN[i]->Set(0);
   }
-  //led =   new frc::DigitalOutput(0);
-  //led10 = new frc::DigitalOutput(11);
-  //led10->Set(1);
-  //lidarSHDN0 = new frc::DigitalOutput(0);
-  //lidarSHDN1 = new frc::DigitalOutput(1);
-  //lidarSHDN0->Set(0);
 
-  /*for(int i=0; i<LIDAR_COUNT-2; i++)
-  {
+  // Chill
+  Timer.wait_BLOCKING(VL53L0X_SETTLE_TIMEDELAY);
+
+  // Bring all HIGH
+  for(int i = 0; i < LIDAR_COUNT; i++) {
+    lidarSHDN[i]->Set(1);
+  }
+
+  // Chill
+  Timer.wait_BLOCKING(VL53L0X_SETTLE_TIMEDELAY);
+  // Put all LOW again
+  for (int i = 0; i < LIDAR_COUNT; i++) {
+    lidarSHDN[i]->Set(0);
+  }
+
+  // Chill
+  Timer.wait_BLOCKING(VL53L0X_SETTLE_TIMEDELAY);
+  // Now initialize one by one
+  for (int i = 0; i < LIDAR_COUNT; i++) {
+    std::cout << "Initializing MicroLidar: " << i << " ... ";
     lidarSHDN[i]->Set(1);
     mLidar[i] = new Sensor_VL53L0X;
-    mLidar[i]->Init(0x29+i);
-  }*/
-  lidarSHDN[1]->Set(1);
-  mLidar[1] = new Sensor_VL53L0X;
-  mLidar[1]->Init(0x30);
-  /*lidarSHDN[1]->Set(1);
-  mLidar[1] = new Sensor_VL53L0X;
-  mLidar[1]->Init(0x30);*/
-    //Status = rangingTest(pMyDevice);
+    if(!mLidar[i]->Init(0x2A+i))
+    {
+      std::cout << "FAILED!" << std::endl;
+    } else {
+      std::cout << "OK!" << std::endl;
+    }
+  }
+
 
 }
 
@@ -67,7 +87,17 @@ void Robot::RobotInit() {
  */
 void Robot::RobotPeriodic() {
   static int state=0;
-  //std::cout << "Measurement= " << mLidar[1]->MeasureMM() << ", " << /*mLidar[1]->MeasureMM()*/"99" << std::endl;
+
+  std::cout << "Measurement= " ;
+  for (int i = 0; i < LIDAR_COUNT; i++) 
+  {
+//    std::cout << "Measurement " << i << " " << mLidar[i]->MeasureMM() << std::endl; 
+    printf(" %4d ", mLidar[i]->MeasureMM()); 
+  }
+  std::cout << std::endl;
+
+  //printf(" Measure= %4d\n", mLidar[3]->MeasureMM());
+
   //std::cout << "POT = " << pot->Get() << std::endl;
 /*  if (lineSensor->Get() < 1.6 && lineSensor->Get() > 1.58)
   {
@@ -87,19 +117,6 @@ void Robot::RobotPeriodic() {
   //if(state++>9) state=0;
   //led10->Set(state>4?1:0);
   //std::cout << "Line Sensor = " << lineSensor->Get() << std::endl;
-
-  
-/*  Status = VL53L0X_PerformSingleRangingMeasurement(pMyDevice,
-      &RangingMeasurementData);
-  if(RangingMeasurementData.RangeMilliMeter < 8000)
-    printf("Measured distance: %i\n", RangingMeasurementData.RangeMilliMeter);
-*/
-//    Status = rangingTest(pMyDevice);
-/*    if(Status == VL53L0X_ERROR_NONE)
-    {
-      std::cout << "Distance = " << Status << std::endl;
-    }
-*/
 }
 
 /**
