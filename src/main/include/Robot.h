@@ -9,6 +9,8 @@
 
 #include <string>
 
+#include <iostream>
+
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/SendableChooser.h>
 
@@ -54,13 +56,18 @@ class Sensor_VL53L0X
 
     pVersion = new VL53L0X_Version_t;
 
-    pMyDevice->fd = VL53L0X_i2c_init("/dev/i2c-2", pMyDevice->I2cDevAddr);//choose between i2c-0 and i2c-1; On the raspberry pi zero, i2c-1 are pins 2 and 3
+    pMyDevice->fd = VL53L0X_i2c_init("/dev/i2c-2", 0x29);//choose between i2c-0 and i2c-1; On the raspberry pi zero, i2c-1 are pins 2 and 3
     if (pMyDevice->fd < 0) 
     {
         Status = VL53L0X_ERROR_CONTROL_INTERFACE;
         printf ("Failed to init\n");
     }
-
+    
+    Status = VL53L0X_SetDeviceAddress(pMyDevice, pMyDevice->I2cDevAddr);
+    if(Status != VL53L0X_ERROR_NONE)
+    {
+        std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+    }
     if(Status == VL53L0X_ERROR_NONE)
     {
         status_int = VL53L0X_GetVersion(pVersion);
