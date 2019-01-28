@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "Helpers.h"
+#include "Timer.h"
 #include "vl53l0x_api.h"
 #include "vl53l0x_platform.h"
 
