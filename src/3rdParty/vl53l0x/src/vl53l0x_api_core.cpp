@@ -2208,6 +2208,11 @@ VL53L0X_Error VL53L0X_get_pal_range_status(VL53L0X_DEV Dev,
 	if (*pPalRangeStatus == 0)
 		pRangingMeasurementData->RangeDMaxMilliMeter = 0;
 
+	/* Allow a bad Status to be passed to the caller */
+	if (Status != VL53L0X_ERROR_NONE) {
+		return Status;
+	}
+
 	/* fill the Limit Check Status */
 
 	Status =  VL53L0X_GetLimitCheckEnable(Dev,
