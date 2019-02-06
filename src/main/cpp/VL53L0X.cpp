@@ -1,5 +1,6 @@
 
 #include "VL53L0X.h"
+#include "vl53l0x_api_calibration.h"
 
 VL53L0X::VL53L0X(int _DigGpioIdx, VL53L0X_DeviceModes _DeviceMode)
 {
@@ -67,6 +68,7 @@ bool VL53L0X::_Init(int I2cAddr)
     VL53L0X_Version_t Version;
     VL53L0X_DeviceInfo_t DeviceInfo;
 
+    DataSelect = 0;
 
     // We need to use a temp i2c device to get comms started using the default addess
     VL53L0X_Dev_t TempDevice;
@@ -262,6 +264,7 @@ void VL53L0X::Reset()
 
 void VL53L0X::StartMeasurement()
 {
+    SetDeviceMode();
     dprint("StartMeasurement GPIO=" << DigGpioIdx);
     Status = VL53L0X_StartMeasurement(&MyDevice);
     print_pal_error(Status);
@@ -276,29 +279,92 @@ void VL53L0X::StopMeasurement()
 
 int VL53L0X::GetMeasurement()
 {
-    return MeasureOnce_MM();
+    switch (DeviceMode) {
+        case VL53L0X_DEVICEMODE_SINGLE_RANGING:
+            return MeasureOnce_MM();
+        case VL53L0X_DEVICEMODE_CONTINUOUS_RANGING:
+            return ValidatedMeasurement_get();
+    }
+}
+
+int VL53L0X::ValidatedMeasurement_get()
+{
+    int Data = Measurement;
+    //int Data = RangingMeasurementData[DataSelect_get()].RangeMilliMeter;
+
+    if (Status == VL53L0X_ERROR_NONE)
+    {      
+        if(Data < 1000)
+            return Data;
+        else
+            return 9999;  
+    } 
+    else  
+        return 9001;
 }
 
 int VL53L0X::MeasureOnce_MM()
 {
-    if(Status == VL53L0X_ERROR_NONE)
+    if(Status == VL53L0X_ERROR_NONE || BYPASS_PRE_MEASUREMENT_STATUS_CHECK)
     {
-        Status = VL53L0X_PerformSingleRangingMeasurement(&MyDevice,&RangingMeasurementData);
+        Status = VL53L0X_PerformSingleRangingMeasurement(&MyDevice,&RangingMeasurementData[DataSelect_get()]);
 
-        dprint("measurement status= " << (uint32_t)Status << "data: " << (uint32_t)RangingMeasurementData.RangeMilliMeter);
+        dprint("measurement status= " << (uint32_t)Status << "data: " << (uint32_t)RangingMeasurementData[DataSelect_get()].RangeMilliMeter);
         //print_pal_error(Status);
 
-        if (Status == VL53L0X_ERROR_NONE)
-        {      if(RangingMeasurementData.RangeMilliMeter < 1000)
-            return RangingMeasurementData.RangeMilliMeter;
-            else
-            return 9999;  
-        } 
-        else  
-            return 9001;
-        
+        return ValidatedMeasurement_get();
     }   
-
     return 9002; 
 }
 
+int VL53L0X::PollMeasurementData()
+{
+    uint32_t NewDataReady=0;
+    VL53L0X_RangingMeasurementData_t    Data;
+    int count=0;
+
+    //Status = VL53L0X_GetMeasurementDataReady(&MyDevice, &NewDataReady);
+    Status = VL53L0X_GetInterruptMaskStatus(&MyDevice, &NewDataReady);
+    if(NewDataReady == VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY && 
+        Status == VL53L0X_ERROR_NONE)
+    {
+        Status = VL53L0X_GetRangingMeasurementData(&MyDevice, &Data);
+//        dprint("data= " << Data.RangeMilliMeter << " Status: " << (int)Status << " Select: " << (int) DataSelect << ":" << (int) peek_DataSelect());
+        if(Status == VL53L0X_ERROR_NONE) {
+            Measurement = Data.RangeMilliMeter;
+        }
+        else    
+        {
+            StopMeasurement();
+            VL53L0X_ClearInterruptMask(&MyDevice, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+            StartMeasurement();
+            dprint("Error during ContinuousMeasurement: " << (int)Status);
+            return 0;
+        }
+
+        do {
+            Status = VL53L0X_ClearInterruptMask(&MyDevice, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+        } while(count++ < 3 && Status != VL53L0X_ERROR_NONE);
+        return 1;
+    } else if(NewDataReady != 0x01)
+    {
+        return 0;
+    } else
+    {
+        // Error
+        StopMeasurement();
+        do {
+            Status = VL53L0X_ClearInterruptMask(&MyDevice, VL53L0X_REG_SYSTEM_INTERRUPT_GPIO_NEW_SAMPLE_READY);
+        } while(count++ < 3 && Status != VL53L0X_ERROR_NONE);
+        StartMeasurement();
+        return 0;
+    }
+    
+}
+
+void VL53L0X::Calibrate(int CalibrationDistance)
+{
+    int Offset_micrometer;
+
+    Status = VL53L0X_perform_offset_calibration(&MyDevice, (unsigned)CalibrationDistance, &Offset_micrometer);
+}

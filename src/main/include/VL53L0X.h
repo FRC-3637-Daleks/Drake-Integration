@@ -18,7 +18,7 @@
 #define VERSION_REQUIRED_BUILD 1
 
 // Uncomment to enable logging
-#define DEBUG_MICRO_LIDAR 
+//#define DEBUG_MICRO_LIDAR 
 #ifdef dprint 
   #undef dprint
 #endif
@@ -27,6 +27,9 @@
 #else
  #define dprint(strm) {}
 #endif
+
+// Set this to 1 to avoid a device status check prior to trying a measurement
+#define BYPASS_PRE_MEASUREMENT_STATUS_CHECK 1
 
 class VL53L0X
 {
@@ -43,6 +46,11 @@ public:
     void StopMeasurement();
     int GetMeasurement();
     int MeasureOnce_MM();
+    // Intended to be called from an asynchronous polling mechanism
+    // This is required for continuous measurement mode
+    int Status_get() { return Status; }
+    int PollMeasurementData();
+    void Calibrate(int CalibrationDistance);
 
 private:
     bool _Init(int I2cAddr);
@@ -69,11 +77,18 @@ private:
         return 1;
     }
 
+    int DataSelect_get() { return DataSelect; }
+    void next_DataSelect() { DataSelect = peek_DataSelect(); }
+    int peek_DataSelect() { return DataSelect_get() ^ 1; }
+    int ValidatedMeasurement_get();
+    
 private:
     int DigGpioIdx;
     int I2CAddr;
     VL53L0X_Error Status; // = VL53L0X_ERROR_NONE;
     VL53L0X_Dev_t MyDevice;
-    VL53L0X_RangingMeasurementData_t    RangingMeasurementData;
+    VL53L0X_RangingMeasurementData_t    RangingMeasurementData[2];
+    int Measurement;
+    int DataSelect;
     VL53L0X_DeviceModes DeviceMode;
 };

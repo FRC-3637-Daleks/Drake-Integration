@@ -64,6 +64,8 @@ void MicroLidar::InitSensors()
         Timer.wait_BLOCKING(VL53L0X_SETTLE_TIMEDELAY);
         Devices[DeviceList[i]]->Init();
     }
+
+    StartMeasurements();
 }
 
 void MicroLidar::StartMeasurements()
@@ -98,14 +100,14 @@ void MicroLidar::StopMeasurements()
 // Get the measurement for a single device
 int MicroLidar::GetMeasurement(int DigGpioIdx)
 {
-    if(MeasureMode == SINGLE_MEASURE_MODE)
-    {
-        return Devices[DigGpioIdx]->GetMeasurement();
-    } else {
-        dprint("Bad MeasurementMode on gpio: " << DigGpioIdx);
-    }
+    return Devices[DigGpioIdx]->GetMeasurement();
+}
 
-
+void MicroLidar::Calibrate(int DigGpioIdx)
+{
+    Devices[DigGpioIdx]->StopMeasurement();
+    Devices[DigGpioIdx]->Calibrate(CALIBRATION_DISTANCE_MM);
+    Devices[DigGpioIdx]->StartMeasurement();
 }
 
 void MicroLidar::SetAllGpio(bool State)
@@ -119,4 +121,13 @@ void MicroLidar::SetAllGpio(bool State)
 void MicroLidar::SetOneGpio(int DeviceIdx, bool State)
 {
     DigGpio[DeviceList[DeviceIdx]]->Set(State);
+}
+
+void MicroLidar::PollDevices()
+{
+    for(int i=0; i < DeviceCount; i++)
+    {
+        //dprint("Polling: " << i);
+        Devices[DeviceList[i]]->PollMeasurementData();
+    }
 }
